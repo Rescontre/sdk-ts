@@ -8,7 +8,7 @@
   "files": ["dist", "README.md"],
   "type": "module",
   "scripts": {
-    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+    "build": "tsup src/index.ts --format cjs,esm --clean && tsc -p tsconfig.build.json",
     "test": "vitest",
     "prepublishOnly": "npm run build"
   },
