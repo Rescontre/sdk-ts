@@ -1,0 +1,38 @@
+{
+  "name": "rescontre",
+  "version": "0.0.1",
+  "description": "TypeScript SDK for the Rescontre clearinghouse",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "files": ["dist", "README.md"],
+  "type": "module",
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+    "test": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jungyoonlim/rescontre-sdk-ts.git"
+  },
+  "keywords": [
+    "x402",
+    "clearinghouse",
+    "netting",
+    "agent-payments",
+    "rescontre"
+  ],
+  "author": "Joanne Lim",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Jungyoonlim/rescontre-sdk-ts/issues"
+  },
+  "homepage": "https://github.com/Jungyoonlim/rescontre-sdk-ts#readme",
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "tsup": "^8.5.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5"
+  }
+}
