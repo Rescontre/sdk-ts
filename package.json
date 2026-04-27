@@ -14,7 +14,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Jungyoonlim/rescontre-sdk-ts.git"
+    "url": "git+https://github.com/Rescontre/sdk-ts.git"
   },
   "keywords": [
     "x402",
@@ -26,9 +26,9 @@
   "author": "Joanne Lim",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/Jungyoonlim/rescontre-sdk-ts/issues"
+    "url": "https://github.com/Rescontre/sdk-ts/issues"
   },
-  "homepage": "https://github.com/Jungyoonlim/rescontre-sdk-ts#readme",
+  "homepage": "https://github.com/Rescontre/sdk-ts#readme",
   "devDependencies": {
     "@types/node": "^25.6.0",
     "tsup": "^8.5.1",
