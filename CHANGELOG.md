@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.3 - 2026-04-28
+
+- Release-workflow fix: pass `--ignore-scripts` to `npm publish` so the
+  `prepublishOnly` build hook doesn't run inside the publish job (which
+  doesn't install devDependencies). No SDK changes from 0.0.2 — 0.0.2 was
+  tagged but never reached the registry.
+
 ## 0.0.2 - 2026-04-28
 
 - **BREAKING:** `new Client(...)` now requires an API key, sourced from the
