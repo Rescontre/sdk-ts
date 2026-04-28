@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.0.4 - 2026-04-28
+## 0.0.5 - 2026-04-28
 
 - **BREAKING:** `new Client(...)` now requires an API key, sourced from
   the `apiKey` constructor option or the `RESCONTRE_API_KEY` environment
