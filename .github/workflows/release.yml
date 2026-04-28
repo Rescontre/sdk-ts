@@ -117,24 +117,15 @@ jobs:
           console.log('smoke OK:', pkg.version);
           "
 
-  promote-latest:
-    needs: smoke-test
-    runs-on: ubuntu-latest
-    environment:
-      name: npm-production
-      url: https://www.npmjs.com/package/rescontre
-    permissions:
-      id-token: write
-    steps:
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          registry-url: https://registry.npmjs.org
-
-      - name: Resolve version from tag
-        id: version
-        run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-
-      - name: Promote @next to @latest (via OIDC trusted publisher)
+      - name: Print promotion command
         run: |
-          npx --yes npm@latest dist-tag add "rescontre@${{ steps.version.outputs.value }}" latest
+          VERSION="${{ steps.version.outputs.value }}"
+          echo "::notice title=Ready to promote::rescontre@${VERSION} is on npm under dist-tag 'next'. Promote to 'latest' from a logged-in terminal: npx --yes npm@latest dist-tag add rescontre@${VERSION} latest"
+          echo ""
+          echo "Smoke tests passed against the published @next release."
+          echo "To make this version the default 'npm install rescontre' result, run from a logged-in npm session:"
+          echo ""
+          echo "    npx --yes npm@latest dist-tag add rescontre@${VERSION} latest"
+          echo ""
+          echo "npm OIDC trusted publishing only authorizes 'npm publish', not"
+          echo "'npm dist-tag', so the final tag flip is intentionally manual."
