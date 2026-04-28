@@ -1,0 +1,142 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci
+      - run: npx tsc -p tsconfig.json --noEmit
+      - run: npx vitest run
+      - run: npm run build
+
+      - name: Verify package.json version matches tag
+        run: |
+          set -euo pipefail
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "package.json version ($PKG_VERSION) does not match tag ($TAG_VERSION)"
+            exit 1
+          fi
+
+      - name: Pack tarball
+        run: npm pack
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package
+          path: |
+            dist/
+            package.json
+            README.md
+            CHANGELOG.md
+            *.tgz
+
+  publish-staging:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: npm-staging
+      url: https://www.npmjs.com/package/rescontre/v/next
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: package
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: https://registry.npmjs.org
+
+      - name: Publish to npm with dist-tag=next
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --tag next --provenance --access public
+
+  smoke-test:
+    needs: publish-staging
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ["20", "22"]
+
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Resolve version from tag
+        id: version
+        run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Install from npm @next dist-tag (with retries)
+        run: |
+          set -euo pipefail
+          mkdir smoke && cd smoke
+          npm init -y > /dev/null
+          for attempt in 1 2 3 4 5; do
+            if npm install "rescontre@${{ steps.version.outputs.value }}"; then
+              exit 0
+            fi
+            echo "npm not yet serving the new release, attempt $attempt — sleeping 15s"
+            sleep 15
+          done
+          exit 1
+
+      - name: Import smoke test
+        working-directory: smoke
+        run: |
+          node --input-type=module -e "
+          import pkg from 'rescontre/package.json' with { type: 'json' };
+          const { Client, RescontreConfigurationError } = await import('rescontre');
+          const expected = '${{ steps.version.outputs.value }}';
+          if (pkg.version !== expected) {
+            throw new Error('version mismatch: ' + pkg.version + ' != ' + expected);
+          }
+          try {
+            new Client('http://localhost');
+            throw new Error('expected RescontreConfigurationError');
+          } catch (e) {
+            if (!(e instanceof RescontreConfigurationError)) throw e;
+          }
+          new Client('http://localhost', { apiKey: 'x'.repeat(64) });
+          console.log('smoke OK:', pkg.version);
+          "
+
+  promote-latest:
+    needs: smoke-test
+    runs-on: ubuntu-latest
+    environment:
+      name: npm-production
+      url: https://www.npmjs.com/package/rescontre
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: https://registry.npmjs.org
+
+      - name: Resolve version from tag
+        id: version
+        run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Promote @next to @latest
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm dist-tag add "rescontre@${{ steps.version.outputs.value }}" latest

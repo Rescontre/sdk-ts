@@ -1,4 +1,8 @@
-import { RescontreAPIError } from "./errors";
+import {
+    AuthenticationError,
+    RescontreAPIError,
+    RescontreConfigurationError,
+} from "./errors";
 import type {
     BilateralSettlementResult,
     Direction,
@@ -7,8 +11,11 @@ import type {
 } from "./models";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
+export const API_KEY_ENV = "RESCONTRE_API_KEY";
+export const API_KEY_HEADER = "X-API-Key";
 
 export interface ClientOptions {
+    apiKey?: string;
     timeoutMs?: number;
     fetch?: typeof fetch;
 }
@@ -24,24 +31,51 @@ export interface SettleOptions {
 
 export class Client {
     readonly baseUrl: string;
+    private readonly apiKey: string;
     private readonly timeoutMs: number;
     private readonly fetchImpl: typeof fetch;
 
     constructor(baseUrl: string = "http://localhost:3000", options: ClientOptions = {}) {
+        const proc = (globalThis as {
+            process?: { env?: Record<string, string | undefined> };
+        }).process;
+        const resolvedKey = options.apiKey ?? proc?.env?.[API_KEY_ENV];
+        if (!resolvedKey) {
+            throw new RescontreConfigurationError(
+                "Rescontre API key is required. Pass apiKey to new Client(...) " +
+                    `or set the ${API_KEY_ENV} environment variable. ` +
+                    "Mint a key via POST /admin/keys with X-Internal-Secret.",
+            );
+        }
+        this.apiKey = resolvedKey;
         this.baseUrl = baseUrl.replace(/\/+$/, "");
         this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
         this.fetchImpl = options.fetch ?? fetch;
     }
 
-    private async request(method: string, path: string, body?: unknown): Promise<unknown> {
+    private async request(
+        method: string,
+        path: string,
+        body?: unknown,
+        authenticated: boolean = false,
+    ): Promise<unknown> {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), this.timeoutMs);
 
         let response: Response;
         try {
-            const init: RequestInit = { method, signal: controller.signal };
+            const headers: Record<string, string> = {};
             if (body !== undefined) {
-                init.headers = { "Content-Type": "application/json" };
+                headers["Content-Type"] = "application/json";
+            }
+            if (authenticated) {
+                headers[API_KEY_HEADER] = this.apiKey;
+            }
+            const init: RequestInit = { method, signal: controller.signal };
+            if (Object.keys(headers).length > 0) {
+                init.headers = headers;
+            }
+            if (body !== undefined) {
                 init.body = JSON.stringify(body);
             }
             response = await this.fetchImpl(`${this.baseUrl}${path}`, init);
@@ -72,6 +106,15 @@ export class Client {
                 }
             } else if (typeof data === "string" && data) {
                 message = data;
+            }
+            if (authenticated && response.status === 401) {
+                throw new AuthenticationError(
+                    `Rescontre rejected the API key — check ${API_KEY_ENV} or ` +
+                        "pass apiKey to the Client. " +
+                        "Mint a key via POST /admin/keys with X-Internal-Secret.",
+                    response.status,
+                    data,
+                );
             }
             throw new RescontreAPIError(message, response.status, data);
         }
@@ -127,12 +170,17 @@ export class Client {
         amount: number,
         nonce: string,
     ): Promise<VerifyResponse> {
-        return (await this.request("POST", "/internal/verify", {
-            agent_id: agentId,
-            server_id: serverId,
-            amount,
-            nonce,
-        })) as VerifyResponse;
+        return (await this.request(
+            "POST",
+            "/internal/verify",
+            {
+                agent_id: agentId,
+                server_id: serverId,
+                amount,
+                nonce,
+            },
+            true,
+        )) as VerifyResponse;
     }
 
     async settle(
@@ -143,14 +191,19 @@ export class Client {
         description: string,
         options: SettleOptions = {},
     ): Promise<SettleResponse> {
-        return (await this.request("POST", "/internal/settle", {
-            agent_id: agentId,
-            server_id: serverId,
-            amount,
-            nonce,
-            description,
-            direction: options.direction ?? null,
-        })) as SettleResponse;
+        return (await this.request(
+            "POST",
+            "/internal/settle",
+            {
+                agent_id: agentId,
+                server_id: serverId,
+                amount,
+                nonce,
+                description,
+                direction: options.direction ?? null,
+            },
+            true,
+        )) as SettleResponse;
     }
 
     async bilateralSettlement(

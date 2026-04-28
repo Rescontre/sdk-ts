@@ -17,10 +17,23 @@ npm install rescontre
 
 ## Quickstart
 
+The SDK requires an API key for `verify` and `settle` calls. Mint one on the
+facilitator with `POST /admin/keys` (operator-only, requires
+`X-Internal-Secret`), then either set `RESCONTRE_API_KEY` in your environment
+or pass `apiKey` to the client:
+
+```bash
+export RESCONTRE_API_KEY=<64-char hex key>
+```
+
 ```ts
 import { Client, Direction } from "rescontre";
 
+// Picks up RESCONTRE_API_KEY from the environment...
 const c = new Client("http://localhost:3000");
+
+// ...or pass it explicitly:
+const c2 = new Client("http://localhost:3000", { apiKey: "<64-char hex key>" });
 
 await c.registerAgent("agent-1", "0xAAA...");
 await c.registerServer("server-1", "0xBBB...", ["/api/data"]);

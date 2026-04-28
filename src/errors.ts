@@ -1,19 +1,20 @@
-export class RescontreError extends Error { 
-    
-}
+export class RescontreError extends Error {}
 
-export class RescontreAPIError extends RescontreError { 
+export class RescontreConfigurationError extends RescontreError {}
 
-    status_code: number; 
-    response_body: unknown; 
+export class RescontreAPIError extends RescontreError {
+    status_code: number;
+    response_body: unknown;
+
     constructor(message: string, status_code: number, response_body: unknown) {
-       super(message);
-
+        super(message);
         this.status_code = status_code;
-        this.response_body = response_body; 
+        this.response_body = response_body;
     }
 
     toString(): string {
         return `[${this.status_code}] ${this.message}`;
     }
 }
+
+export class AuthenticationError extends RescontreAPIError {}
