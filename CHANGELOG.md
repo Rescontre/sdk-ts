@@ -1,24 +1,17 @@
 # Changelog
 
-## 0.0.3 - 2026-04-28
+## 0.0.4 - 2026-04-28
 
-- Release-workflow fix: pass `--ignore-scripts` to `npm publish` so the
-  `prepublishOnly` build hook doesn't run inside the publish job (which
-  doesn't install devDependencies). No SDK changes from 0.0.2 — 0.0.2 was
-  tagged but never reached the registry.
-
-## 0.0.2 - 2026-04-28
-
-- **BREAKING:** `new Client(...)` now requires an API key, sourced from the
-  `apiKey` constructor option or the `RESCONTRE_API_KEY` environment variable.
-  Construction throws `RescontreConfigurationError` if neither is set. The
-  facilitator began enforcing `X-API-Key` on `/verify` and `/settle` in commit
-  `1ea7b3b` (2026-04-28).
-- The SDK now sends `X-API-Key: <key>` on every `verify` and `settle` request.
-  Public endpoints (`/health`, `/agents`, `/servers`, `/agreements`,
-  `/settlement`, `/webhooks/*`) remain unauthenticated.
-- New `AuthenticationError` (subclass of `RescontreAPIError`) is thrown without
-  retry when the facilitator returns HTTP 401 from `verify` or `settle`.
+- **BREAKING:** `new Client(...)` now requires an API key, sourced from
+  the `apiKey` constructor option or the `RESCONTRE_API_KEY` environment
+  variable. Construction throws `RescontreConfigurationError` if neither
+  is set.
+- The SDK now sends `X-API-Key: <key>` on every `verify` and `settle`
+  request. Public endpoints (`/health`, `/agents`, `/servers`,
+  `/agreements`, `/settlement`, `/webhooks/*`) remain unauthenticated.
+- New `AuthenticationError` (subclass of `RescontreAPIError`) is thrown
+  without retry when the facilitator returns HTTP 401 from `verify` or
+  `settle`.
 
 ## 0.0.1 - 2026-04-25
 

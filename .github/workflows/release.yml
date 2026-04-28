@@ -63,9 +63,10 @@ jobs:
           node-version: "22"
           registry-url: https://registry.npmjs.org
 
-      - name: Publish to npm with dist-tag=next
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Upgrade npm to a version that supports trusted publishing
+        run: npm install -g npm@latest
+
+      - name: Publish to npm with dist-tag=next (via OIDC trusted publisher)
         run: npm publish --tag next --provenance --access public --ignore-scripts
 
   smoke-test:
@@ -125,18 +126,21 @@ jobs:
     environment:
       name: npm-production
       url: https://www.npmjs.com/package/rescontre
+    permissions:
+      id-token: write
     steps:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           registry-url: https://registry.npmjs.org
 
+      - name: Upgrade npm to a version that supports trusted publishing
+        run: npm install -g npm@latest
+
       - name: Resolve version from tag
         id: version
         run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Promote @next to @latest
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Promote @next to @latest (via OIDC trusted publisher)
         run: |
           npm dist-tag add "rescontre@${{ steps.version.outputs.value }}" latest
