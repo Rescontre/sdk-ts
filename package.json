@@ -1,11 +1,14 @@
 {
   "name": "rescontre",
-  "version": "0.0.5",
-  "description": "TypeScript SDK for the Rescontre clearinghouse",
+  "version": "0.1.0",
+  "description": "SDK for Rescontre agent payment ops: event ingestion, receipt timelines, and issue detection for agent/API payment traffic.",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "type": "module",
   "scripts": {
     "build": "tsup src/index.ts --format cjs,esm --clean && tsc -p tsconfig.build.json",

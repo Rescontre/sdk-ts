@@ -1,13 +1,13 @@
 # rescontre
 
-TypeScript SDK for Rescontre, a clearinghouse for agent-to-agent payments. Agents
-and resource servers record commitments against a bilateral ledger and settle in
-periodic batches instead of on every request.
+TypeScript SDK for [Rescontre](https://rescontre.com) — payment operations
+for agent and API traffic. Send your payment and job lifecycle events;
+Rescontre builds one canonical receipt timeline per interaction, detects
+issues (paid-not-delivered, duplicates, missing refunds, …), and backs every
+number with hashed source evidence.
 
-## Why?
-
-Instead of settling every API call on-chain, Rescontre nets obligations and
-settles the differences. Up to ~90% fewer settlement transactions.
+Rescontre observes and reconciles. It does not custody funds, initiate
+transfers, or settle payments on your behalf.
 
 ## Install
 
@@ -17,68 +17,90 @@ npm install rescontre
 
 ## Quickstart
 
-The SDK requires an API key for `verify` and `settle` calls. Mint one on the
-facilitator with `POST /admin/keys` (operator-only, requires
-`X-Internal-Secret`), then either set `RESCONTRE_API_KEY` in your environment
-or pass `apiKey` to the client:
-
-```bash
-export RESCONTRE_API_KEY=<64-char hex key>
-```
+Every call is authenticated with an API key: set `RESCONTRE_API_KEY` in your
+environment or pass `apiKey` to the client.
 
 ```ts
-import { Client, Direction } from "rescontre";
+import { Client } from "rescontre";
 
-// Picks up RESCONTRE_API_KEY from the environment...
-const c = new Client("http://localhost:3000");
+const c = new Client("https://rescontre-production.up.railway.app");
 
-// ...or pass it explicitly:
-const c2 = new Client("http://localhost:3000", { apiKey: "<64-char hex key>" });
-
-await c.registerAgent("agent-1", "0xAAA...");
-await c.registerServer("server-1", "0xBBB...", ["/api/data"]);
-await c.createAgreement("agent-1", "server-1", {
-  creditLimit: 10_000_000,
-  settlementFrequency: 100,
+// A customer's agent called your paid tool: record what happened.
+await c.sendEvent({
+  eventType: "payment.succeeded",
+  correlationId: "job-42",       // ties events into one receipt
+  source: "my-app",              // your system's name
+  externalId: "pi_3PqX...",      // the upstream id (Stripe intent, tx hash, ...)
+  amount: 1_000_000,             // microdollars: $1 === 1_000_000
+  currency: "USD",
+  providerId: "tool-server-1",
+  payload: { stripeEvent: "..." }, // retained redacted + hashed as evidence
+});
+await c.sendEvent({
+  eventType: "tool.delivered",
+  correlationId: "job-42",
+  source: "my-app",
+  externalId: "run-981",
+  toolName: "search",
 });
 
-const check = await c.verify("agent-1", "server-1", 1_000_000, "n-1");
-if (!check.valid) throw new Error(check.reason ?? "verify failed");
+// The receipt timeline for that interaction:
+const receipt = await c.getReceipt("job-42");
 
-const receipt = await c.settle(
-  "agent-1",
-  "server-1",
-  1_000_000,
-  "n-1",
-  "GET /api/data",
-  { direction: Direction.AgentToServer },
-);
-console.log(receipt.commitment_id, receipt.net_position);
+// Anything unresolved across all your traffic:
+const inbox = await c.listIssues(); // open issues by default
+
+// Search receipts by any operational handle:
+const hits = await c.searchReceipts({ provider: "tool-server-1", since: 1752000000 });
 ```
 
-Amounts are integers in microdollars (`$1 === 1_000_000`).
+### Event types
 
-## Connect
+`POST /events` accepts a closed vocabulary (anything else is a 400):
 
-```ts
-// Local development
-const c = new Client("http://localhost:3000");
+| Family | Types |
+| --- | --- |
+| Payment | `payment.initiated`, `payment.succeeded`, `payment.failed`, `payment.refunded` |
+| Tool / job | `tool.requested`, `tool.delivered`, `tool.failed` |
+| Dispute | `dispute.opened`, `dispute.resolved` |
 
-// Production
-const c = new Client("https://rescontre-production.up.railway.app");
-```
+`amount` (microdollars, > 0) is required for `payment.succeeded` and
+`payment.refunded` — an observed transfer without an amount is not evidence
+of anything.
 
-```ts
-// After multiple settle calls in both directions...
-const result = await c.bilateralSettlement("agent-1", "server-1");
-console.log(`Gross: $${(result.gross_volume / 1_000_000).toFixed(2)}`);
-console.log(`Net:   $${(result.net_amount / 1_000_000).toFixed(2)}`);
-console.log(`Compression: ${(result.compression * 100).toFixed(0)}%`);
-```
+### Retries and idempotency
+
+`sendEvent` retries transient failures (network errors, timeouts, 429/5xx)
+with backoff, and this is safe by design: the server deduplicates on
+`(source, external_id, event_type)`. If a send actually landed but the
+response was lost, the retry returns `duplicate: true` — an idempotent
+success, never a double record. 4xx responses are never retried. The
+schedule is configurable via `new Client(url, { retryBackoffMs: [...] })`.
+
+Give each distinct real-world occurrence its own `externalId` (your job id,
+the Stripe intent id, the tx hash) and reuse it on resends.
+
+### Evidence semantics
+
+The server hashes the **exact raw request body** it receives (SHA-256,
+before parsing or redaction), then retains your `payload` **redacted**. The
+hash proves byte-for-byte what was sent; the redaction keeps secrets out of
+storage. Source names prefixed `rail:` or `webhook:` are reserved for
+Rescontre's own rail-verified ingestion, so customer-sent and rail-verified
+evidence stay distinguishable forever.
+
+## Legacy clearinghouse endpoints
+
+Earlier versions of this SDK targeted Rescontre's clearing surface
+(`registerAgent`, `registerServer`, `createAgreement`, `verify`, `settle`,
+`bilateralSettlement`). Those methods still work against legacy deployments,
+but ops-product deployments run with `OPS_MODE=true`, where money-movement
+endpoints are disabled and respond `403`. New integrations should use the
+events/receipts/issues surface above.
 
 ## Examples
 
-End-to-end demo of the x402 → verify → settle → net flow lives in
+End-to-end demos of the **legacy clearinghouse flow** live in
 [`examples/`](./examples). Run against a local backend on `:3000`:
 
 ```bash
